@@ -1,4 +1,4 @@
-﻿La génération a démarré 06/01/2016 12:28:00.
+﻿La génération a démarré 06/02/2016 21:17:00.
      1>Projet "C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\TP_CV1\TP_CV1.vcxproj" sur le nœud 2 (Build cible(s)).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt main2.cpp
@@ -10,4 +10,4 @@
 
 La génération a réussi.
 
-Temps écoulé 00:00:03.50
+Temps écoulé 00:00:01.44
