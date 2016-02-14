@@ -7,71 +7,14 @@
 
 using namespace cv;
 using namespace std;
-int minH, maxH = 255, minS, maxS = 255, minV, maxV = 255, nb_img = 0;
-Mat gRectified1;
-Mat gRectified2;
-
-void findMatchings(Mat& image1, Mat& image2, std::vector<cv::Point2f>& points1, std::vector<cv::Point2f>& points2)
-{
-	std::vector<cv::Point2f> tmpA, tmpB;
-	std::vector<unsigned char> status;
-	std::vector<float> errors;
-	goodFeaturesToTrack(image1, tmpA, 50000, 0.1, 10.0f);
-	calcOpticalFlowPyrLK(image1, image2, tmpA, tmpB, status, errors);
-	auto tmpABegin = tmpA.begin(), tmpBBegin = tmpB.begin();
-	auto statusBegin = status.begin();
-	while (tmpABegin != tmpA.end())
-	{
-		if ( (*statusBegin) == 1)
-		{
-			points1.push_back(*tmpABegin);
-			points2.push_back(*tmpBBegin);
-		}
-		tmpABegin++;
-		tmpBBegin++;
-		statusBegin++;
-	}
-	//std::cout << "Size :" << points1.size() << std::endl;
-}
-
-
-void showMatchings(Mat& image1, std::vector<cv::Point2f>& points1, std::vector<cv::Point2f>& points2, int nb)
-{
-	Size sz1 = image1.size();
-	Mat im3(sz1.height, sz1.width, image1.type());
-	image1.copyTo(im3);
-	Mat im3Color;
-	cv::cvtColor(im3, im3Color, CV_GRAY2BGR);
-	/*int* aver = (int*) malloc(sizeof(int) * 2000);
-	for (int i = 0; i < 2000; i++)
-		aver[i] = 0;*/
-	auto p1Ptr = points1.begin(), p2Ptr = points2.begin();
-	while (p1Ptr != points1.end())
-	{
-		cv::line(im3Color, *p1Ptr, *p2Ptr, cv::Scalar(255.0, 0.0, 0.0));
-		/*int x = p1Ptr->x / 100;
-		int y = p1Ptr->y / 100;
-		aver[x * 100 + y * 5] += p1Ptr->x;
-		aver[x * 100 + y * 5 + 1] += p2Ptr->x;
-		aver[x * 100 + y * 5 + 2] += p1Ptr->y;
-		aver[x * 100 + y * 5 + 3] += p2Ptr->y;
-		++aver[x * 100 + y * 5 + 4];*/
-		p1Ptr++;
-		p2Ptr++;
-	}
-	/*for (int i = 0; i < 2000; i += 5)
-	{
-		if (aver[i + 4] > 0)
-		{
-			cv::Point p1(aver[i] / aver[i + 4], aver[i + 2] / aver[i + 4]);
-			cv::Point p2(aver[i + 1] / aver[i + 4], aver[i + 3] / aver[i + 4]);
-			cv::line(im3Color, p1, p2, cv::Scalar(0.0, 0.0, 255.0));
-		}
-	}*/
-	imshow(std::string("Image"), im3Color);
-}
-
-
+bool manual = false;
+int minH, maxH = 255, minS, maxS = 255, minV, maxV = 255, nb_img = 0, i;
+vector<Point> triangle;
+Point2f cCenter;
+Point2f points[4];
+float cRadius, area, size;
+vector<vector<Point>> contours;
+RotatedRect rect;
 
 void updateMinH(int v, void* val)
 {
@@ -104,6 +47,7 @@ void updateMaxV(int v, void* val)
 void updateNBImage(int v, void* val)
 {
 	nb_img = v;
+	manual = true;
 }
 
 std::string getImagePrefix(int i)
@@ -118,82 +62,95 @@ std::string getImagePrefix(int i)
 		return std::string("images/000000");
 }
 
-void getContoursAndDraw(const Mat* baseImage, const Scalar* min, const Scalar* max, const Scalar* color, Mat* imageToDrawOn)
+void getContoursAndDraw(const Mat* baseImage, const Scalar* rectColor, const Scalar* circleColor, const Scalar* triangleColor, Mat* imageToDrawOn)
 {
-	Mat tmp;
-	vector<vector<Point>> contours;
-	inRange(*baseImage, *min, *max, tmp);
-	findContours(tmp, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+
+	findContours(*baseImage, contours, RETR_LIST, CV_CHAIN_APPROX_NONE);
 	int i = 0;
 	for (const vector<Point>& cnt : contours)
 	{
-		if (contourArea(cnt) > 200)
-			drawContours(*imageToDrawOn, contours, i, *color);
+		area = contourArea(cnt);
+		if (area > 400 && area < 30000)
+		{
+			size = minEnclosingTriangle(cnt, triangle);
+			if (area > size * 0.9)
+			{
+				line(*imageToDrawOn, triangle[0], triangle[1], *triangleColor);
+				line(*imageToDrawOn, triangle[1], triangle[2], *triangleColor);
+				line(*imageToDrawOn, triangle[2], triangle[0], *triangleColor);
+			}
+			else
+			{
+				minEnclosingCircle(cnt, cCenter, cRadius);
+				if (area > 3.14 * cRadius * cRadius * 0.75)
+				{
+					circle(*imageToDrawOn, cCenter, cRadius, *circleColor);
+				}
+				else
+				{
+					rect = minAreaRect(cnt);
+					rect.points(points);
+					if (rect.size.height * rect.size.width * 0.7 < area)
+					{
+						line(*imageToDrawOn, points[0], points[1], *rectColor);
+						line(*imageToDrawOn, points[1], points[2], *rectColor);
+						line(*imageToDrawOn, points[2], points[3], *rectColor);
+						line(*imageToDrawOn, points[3], points[0], *rectColor);
+					}
+				}
+			}
+		}
 		i++;
 	}
 }
 
-int main4(int argc, char* argv[])
-{
-	Scalar green(0, 255, 0);
-	Mat image1, hsv, blue, blue2;
-	Scalar blueMin(105, 181, 32), blueMax(115, 239, 214), blue2Min(107, 114, 32), blue2Max(110, 156, 44);
-	for (nb_img = 0; nb_img < 837; nb_img++)
-	{
-		image1 = cv::imread(getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
-		cvtColor(image1, hsv, CV_BGR2HSV);
-		getContoursAndDraw(&hsv, &blueMin, &blueMax, &green, &image1);
-		getContoursAndDraw(&hsv, &blue2Min, &blue2Max, &green, &image1);
-		cv::imshow("Color", image1);
-		waitKey(1);
-	}
-	cv::waitKey();
-	std::cout << "end" << std::endl;
-	return 0;
-}
 
 
 int main3(int argc, char* argv[])
 {
 	Scalar green(0, 255, 0);
-	Mat image1, hsv, tmp2, tmp3;
-	Scalar min1(105, 181, 32), max1(115, 239, 214),
-		min2(107, 114, 32), max2(110, 156, 44),
-		min3(160, 86, 55), max3(184, 195, 93),
-		min4(0, 150, 33), max4(5, 230, 50),
-		min5(97, 76, 69), max5(106, 108, 89),
-		min6(171, 82, 0), max6(197, 255, 47),
-		min8(12, 172, 35), max8(21, 200, 61);
-	for (nb_img = 0; nb_img < 837; nb_img++)
+	Scalar red(0, 0, 255);
+	Scalar blue(255, 0, 0);
+	Mat image1, hsv, tmp, tmp2;
+	Scalar colors[] = {
+		Scalar(0, 147, 30), Scalar(5, 230, 50),
+		Scalar(0, 0, 78), Scalar(25, 107, 85),
+		Scalar(12, 172, 35), Scalar(21, 200, 61),
+		Scalar(92, 0, 175), Scalar(100, 255, 255),
+		Scalar(94, 0, 74), Scalar(109, 109, 255),
+		Scalar(94, 63, 59), Scalar(109, 100, 66),
+		Scalar(96, 65, 67), Scalar(106, 108, 89),
+		Scalar(101, 75, 59), Scalar(111, 100, 69),
+		Scalar(105, 181, 50), Scalar(115, 245, 214),
+		Scalar(104, 131, 0), Scalar(115, 255, 50),
+		Scalar(107, 89, 32), Scalar(110, 156, 44),
+		Scalar(108, 198, 171), Scalar(117, 239, 231),
+		Scalar(160, 86, 55), Scalar(184, 195, 93),
+		Scalar(120, 27, 44), Scalar(125, 31, 48),
+		Scalar(158, 88, 55), Scalar(184, 202, 93),
+		Scalar(163, 158, 0), Scalar(180, 205, 28),
+		Scalar(171, 82, 0), Scalar(197, 255, 47)
+	};
+	image1 = cv::imread(std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
+	cv::imshow("Color", image1);
+	cv::createTrackbar("nb_img", "Color", 0, 836, updateNBImage);
+	while (nb_img < 837)
 	{
 		image1 = cv::imread(getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 		cvtColor(image1, hsv, CV_BGR2HSV);
-
-		vector<vector<Point>> contours;
-		inRange(hsv, min1, max1, tmp3);
-		inRange(hsv, min2, max2, tmp2);
-		max(tmp3, tmp2, tmp3);
-		inRange(hsv, min3, max3, tmp2);
-		max(tmp3, tmp2, tmp3);
-		inRange(hsv, min4, max4, tmp2);
-		max(tmp3, tmp2, tmp3);
-		inRange(hsv, min5, max5, tmp2);
-		max(tmp3, tmp2, tmp3);
-		inRange(hsv, min6, max6, tmp2);
-		max(tmp3, tmp2, tmp3);
-		inRange(hsv, min8, max8, tmp2);
-		max(tmp3, tmp2, tmp3);
-		cv::imshow("White", tmp3);
-		findContours(tmp3, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
-		int i = 0;
-		for (const vector<Point>& cnt : contours)
+		inRange(hsv, colors[0], colors[1], tmp);
+		for (i = 2; i < 34; i+=2)
 		{
-			if (contourArea(cnt) > 200)
-				drawContours(image1, contours, i, green);
-			i++;
+			inRange(hsv, colors[i], colors[i+1], tmp2);
+			max(tmp, tmp2, tmp);
 		}
+		getContoursAndDraw(&tmp, &red, &green, &green, &image1);
+		blur(tmp, tmp, Size(3, 3));
+		getContoursAndDraw(&tmp, &red, &green, &green, &image1);
 		cv::imshow("Color", image1);
 		waitKey(1);
+		if (!manual)
+			nb_img++;
 	}
 	cv::waitKey();
 	std::cout << "end" << std::endl;
@@ -203,9 +160,16 @@ int main3(int argc, char* argv[])
 
 int main2(int argc, char* argv[])
 {
-	Mat image1, hsv, h, s, v;
+	if (argc < 3)
+	{
+		std::cout << "Pleas provide the image's folder's path" << std::endl;
+		return -1;
+	}
+	Scalar green(0, 255, 0);
+	Scalar red(0, 0, 255);
+	Mat image1, hsv, h, s, v, tmp;
 	Mat hC[3], sC[3], vC[3];
-	image1 = cv::imread(std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
+	image1 = cv::imread(std::string(argv[2]) + std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
 	cv::imshow("Color", image1);
 	cv::createTrackbar("minH", "Color", 0, 255, updateMinH);
 	cv::createTrackbar("maxH", "Color", 0, 255, updateMaxH);
@@ -216,6 +180,7 @@ int main2(int argc, char* argv[])
 	cv::createTrackbar("nb_img", "Color", 0, 836, updateNBImage);
 	while (true)
 	{
+		vector<vector<Point>> contours;
 		image1 = cv::imread(getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 		cvtColor(image1, hsv, CV_BGR2HSV);
 		inRange(hsv, Scalar(minH, 0, 0), Scalar(maxH, 255, 255), h);
@@ -228,6 +193,18 @@ int main2(int argc, char* argv[])
 		vC[0].copyTo(hC[2]);
 		merge(hC, 3, h);
 		cv::imshow("Color", h);
+		inRange(hsv, Scalar(minH, minS, minV), Scalar(maxH, maxS, maxV), tmp);
+		blur(tmp, tmp, Size(5, 5));
+		findContours(tmp, contours, RETR_LIST, CV_CHAIN_APPROX_TC89_KCOS);
+		int i = 0;
+		for (const vector<Point>& cnt : contours)
+		{
+			if (isContourConvex(cnt))
+				drawContours(image1, contours, i, green);
+			else
+				drawContours(image1, contours, i, red);
+			i++;
+		}
 		cv::imshow("Originale", image1);
 		waitKey(1);
 	}
@@ -239,5 +216,8 @@ int main2(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-	main3(argc, argv);
+	if (argc > 1)
+		if (strcmp(argv[1], "colors") == 0)
+			return main2(argc, argv);
+	return main3(argc, argv);
 }
