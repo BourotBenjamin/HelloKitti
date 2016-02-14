@@ -131,12 +131,15 @@ int main3(int argc, char* argv[])
 		Scalar(163, 158, 0), Scalar(180, 205, 28),
 		Scalar(171, 82, 0), Scalar(197, 255, 47)
 	};
-	image1 = cv::imread(std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
+	std::string prefix("");
+	if (argc > 1)
+		prefix = std::string(argv[1]);
+	image1 = cv::imread(prefix + std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
 	cv::imshow("Color", image1);
 	cv::createTrackbar("nb_img", "Color", 0, 836, updateNBImage);
 	while (nb_img < 837)
 	{
-		image1 = cv::imread(getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+		image1 = cv::imread(prefix + getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 		cvtColor(image1, hsv, CV_BGR2HSV);
 		inRange(hsv, colors[0], colors[1], tmp);
 		for (i = 2; i < 34; i+=2)
@@ -181,7 +184,7 @@ int main2(int argc, char* argv[])
 	while (true)
 	{
 		vector<vector<Point>> contours;
-		image1 = cv::imread(getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+		image1 = cv::imread(std::string(argv[2]) + getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 		cvtColor(image1, hsv, CV_BGR2HSV);
 		inRange(hsv, Scalar(minH, 0, 0), Scalar(maxH, 255, 255), h);
 		inRange(hsv, Scalar(0, minS, 0), Scalar(255, maxS, 255), s);
