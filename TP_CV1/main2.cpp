@@ -43,11 +43,12 @@ Rect maskRect;
 int main4(int argc, char* argv[])
 {
 	Mat mask, maskBGR, result;
-	Mat image1, hsv, h, s, v, tmp, tmp2, imageGray, canny_output, descriptor;
+	Mat image1, hsv, h, s, v, tmp, tmp2, canny_output, descriptor;
 	Mat hC[3], sC[3], vC[3];
 	vector<Mat> masks, knownDescriptors, descriptors, signs;
-	Ptr<FeatureDetector> featureDetector = BRISK::create(15, 3, 0.25f);
-	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create(15, 3, 0.5f);
+	Ptr<FeatureDetector> featureDetector = BRISK::create(10, 3, 0.5f);
+	//Ptr<FeatureDetector> featureDetector = FastFeatureDetector::create(5);
+	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create(10, 3, 0.5f);
 	Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
 	vector<KeyPoint> keypoints;
 	vector<DMatch> matches;
@@ -112,7 +113,7 @@ int main4(int argc, char* argv[])
 							best = sample_id + 1;
 						}
 					}
-					if (best != -1)
+					if (best != -1 && bestScore > 20)
 					{
 						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 						putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
@@ -166,6 +167,7 @@ int main4(int argc, char* argv[])
 
 
 		waitKey(1);
+		nb_img++;
 	}
 	cv::waitKey();
 	std::cout << "end" << std::endl;
@@ -416,7 +418,7 @@ void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, 
 		descriptorExtractor->compute(image, keypoints, descriptor);
 		knownDescriptors.push_back(descriptor);
 		drawKeypoints(image, keypoints, image);
-		//cv::imshow("Example " + std::to_string(nb_img), image);
+		cv::imshow("Example " + std::to_string(nb_img), image);
 		waitKey(1);
 	}
 }
@@ -429,7 +431,7 @@ void getDescriptorAndDrawKeypoints(Ptr<FeatureDetector> featureDetector, Ptr<Des
 	{
 		featureDetector->detect(image, keypoints, mask);
 		descriptorExtractor->compute(image, keypoints, descriptor);
-		//drawKeypoints(image, keypoints, image);
+		drawKeypoints(image, keypoints, image);
 		descriptors.push_back(descriptor);
 	}
 }
