@@ -15,6 +15,7 @@ Point2f points[4];
 float cRadius, area, size;
 vector<vector<Point>> contours;
 RotatedRect rect;
+Rect maskRect;
 Scalar white(255, 255, 255);
 Scalar black(0, 0, 0);
 
@@ -64,44 +65,60 @@ std::string getImagePrefix(int i)
 		return std::string("images/000000");
 }
 
-void getContoursAndMasks(const Mat* baseImage, const Scalar* rectColor, const Scalar* circleColor, const Scalar* triangleColor, std::vector<Mat>* masks)
+void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::vector<Mat>* masks, std::vector<Mat>* signs)
 {
-	findContours(*baseImage, contours, RETR_LIST, CV_CHAIN_APPROX_NONE);
+	findContours(*contoursImage, contours, RETR_LIST, CV_CHAIN_APPROX_NONE);
 	int i = 0;
 	for (const vector<Point>& cnt : contours)
 	{
 		area = contourArea(cnt);
 		if (area > 400 && area < 30000)
 		{
-			size = minEnclosingTriangle(cnt, triangle);
+			/*size = minEnclosingTriangle(cnt, triangle);
 			if (area > size * 0.9 && !triangle.empty())
 			{
-				/*Mat mask = Mat::zeros((*baseImage).rows, (*baseImage).cols, CV_8UC1);
-				polylines(mask, triangle, true, white, CV_FILLED);
-				masks->push_back(mask);*/
-				std::cout << "BUG Triangle !!! :@ " << std::endl;
+				rect = minAreaRect(cnt);
+				rect.points(points);
+				points[2].y = max(points[2].y, 0.0f);
+				maskRect = Rect(points[0], points[2]);
+				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+				rectangle(mask, points[0], points[2], white, CV_FILLED);
+				masks->push_back(mask);
+				signs->push_back((*baseImage)(maskRect));
 			}
 			else
 			{
 				minEnclosingCircle(cnt, cCenter, cRadius);
 				if (area > 3.14 * cRadius * cRadius * 0.75)
 				{
-					Mat mask = Mat::zeros((*baseImage).rows, (*baseImage).cols, CV_8UC1);
-					circle(mask, cCenter, cRadius, white, CV_FILLED);
-					masks->push_back(mask);
-				}
-				else
-				{
 					rect = minAreaRect(cnt);
 					rect.points(points);
+					points[2].y = max(points[2].y, 0.0f);
+					maskRect = Rect(points[0], points[2]);
+					Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+					circle(mask, cCenter, cRadius, white, CV_FILLED);
+					masks->push_back(mask);
+					signs->push_back((*baseImage)(maskRect));
+				}
+				else
+				{*/
+					rect = minAreaRect(cnt);
 					if (rect.size.height * rect.size.width * 0.7 < area)
 					{
-						Mat mask = Mat::zeros((*baseImage).rows, (*baseImage).cols, CV_8UC1);
+						rect.points(points);
+						maskRect = Rect(
+							min(points[0].x, points[2].x), 
+							max(points[2].y, 0.0f), 
+							max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1, 
+							min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
+						);
+						Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
 						rectangle(mask, points[0], points[2], white, CV_FILLED);
 						masks->push_back(mask);
+						signs->push_back((*baseImage)(maskRect));
 					}
-				}
-			}
+				//}
+			//}
 		}
 		i++;
 	}
@@ -111,14 +128,14 @@ void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, 
 {
 	Mat image, descriptor;
 	vector<KeyPoint> keypoints;
-	for (int nb_img = 1; nb_img < 9; nb_img++)
+	for (int nb_img = 1; nb_img < 19; nb_img++)
 	{
 		image = cv::imread(prefix + "classified_images/" + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 		featureDetector->detect(image, keypoints, noArray());
 		descriptorExtractor->compute(image, keypoints, descriptor);
 		knownDescriptors.push_back(descriptor);
 		drawKeypoints(image, keypoints, image);
-		cv::imshow("Example " + std::to_string(nb_img), image);
+		//cv::imshow("Example " + std::to_string(nb_img), image);
 		waitKey(1);
 	}
 }
@@ -131,25 +148,26 @@ void getDescriptorAndDrawKeypoints(Ptr<FeatureDetector> featureDetector, Ptr<Des
 	{
 		featureDetector->detect(image, keypoints, mask);
 		descriptorExtractor->compute(image, keypoints, descriptor);
-		drawKeypoints(image, keypoints, image);
+		//drawKeypoints(image, keypoints, image);
 		descriptors.push_back(descriptor);
 	}
 }
 
 int main4(int argc, char* argv[])
 {
-	Mat mask, maskBGR;
+	Mat mask, maskBGR, result;
 	Scalar green(0, 255, 0);
 	Scalar red(0, 0, 255);
 	Scalar blue(255, 0, 0);
 	Mat image1, hsv, h, s, v, tmp, tmp2, imageGray, canny_output, descriptor;
 	Mat hC[3], sC[3], vC[3];
-	vector<Mat> masks, knownDescriptors, descriptors;
-	Ptr<FeatureDetector> featureDetector = FastFeatureDetector::create();
-	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create();
+	vector<Mat> masks, knownDescriptors, descriptors, signs;
+	Ptr<FeatureDetector> featureDetector = BRISK::create(15, 3, 0.25f);
+	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create(15, 3, 0.5f);
 	Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
 	vector<KeyPoint> keypoints;
 	vector<DMatch> matches;
+	int resultsSize = 0, lastFrameId = -1;
 	Scalar colors[] = {
 		Scalar(0, 147, 30), Scalar(5, 230, 50),
 		Scalar(0, 0, 78), Scalar(25, 107, 85),
@@ -177,61 +195,69 @@ int main4(int argc, char* argv[])
 
 	image1 = cv::imread(prefix + std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
 	cv::imshow("Color", image1);
-	cv::createTrackbar("minH", "Color", 0, 255, updateMinH);
-	cv::createTrackbar("maxH", "Color", 0, 255, updateMaxH);
-	cv::createTrackbar("minS", "Color", 0, 255, updateMinS);
-	cv::createTrackbar("maxS", "Color", 0, 255, updateMaxS);
-	cv::createTrackbar("minV", "Color", 0, 255, updateMinV);
-	cv::createTrackbar("maxV", "Color", 0, 255, updateMaxV);
 	cv::createTrackbar("nb_img", "Color", 0, 836, updateNBImage);
 	while (nb_img < 837)
 	{
-		keypoints.clear();
-		masks.clear();
-		descriptors.clear();
-		descriptor = Mat();
+			keypoints.clear();
+			masks.clear();
+			signs.clear();
+			descriptors.clear();
+			descriptor = Mat();
 
-		image1 = cv::imread(prefix + getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
-		cvtColor(image1, hsv, CV_BGR2HSV);
-		inRange(hsv, colors[0], colors[1], tmp);
-		for (i = 2; i < 34; i += 2)
-		{
-			inRange(hsv, colors[i], colors[i + 1], tmp2);
-			max(tmp, tmp2, tmp);
-		}
-
-		getContoursAndMasks(&tmp, &red, &green, &green, &masks);
-		blur(tmp, tmp, Size(5, 5));
-		getContoursAndMasks(&tmp, &red, &green, &green, &masks);
-
-		getDescriptorAndDrawKeypoints(featureDetector, descriptorExtractor, descriptors, image1, masks);
-
-
-		/***************************** FIND BEST *****************************/
-		int best, bestScore = 0;
-		cv::imshow("Color", image1);
-		if (!descriptors.empty() && !knownDescriptors.empty()) {
-			for (int sign_in_image = 0; sign_in_image < descriptors.size(); sign_in_image++)
+			image1 = cv::imread(prefix + getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+			cvtColor(image1, hsv, CV_BGR2HSV);
+			inRange(hsv, colors[0], colors[1], tmp);
+			for (i = 2; i < 34; i += 2)
 			{
-				bestScore = 0, best = -1;
-				for (int sample_id = 0; sample_id < knownDescriptors.size(); sample_id++)
-				{
-					matcher->match(descriptors[sign_in_image], knownDescriptors[sample_id], matches);
-					int score = 0;
-					for (int m = 0; m < matches.size(); m++)
-					{
-						if (matches[m].distance < 75.0)
-							score++;
-					}
-					if (score > bestScore)
-					{
-						bestScore = score;
-						best = sample_id + 1;
-					}
-				}
-				std::cout << "Panneau " << best << " found at " << sign_in_image << " ( Score : " << bestScore << " )" << std::endl;
+				inRange(hsv, colors[i], colors[i + 1], tmp2);
+				max(tmp, tmp2, tmp);
 			}
-		}
+
+			getContoursAndMasks(&tmp, &image1, &masks, &signs);
+			blur(tmp, tmp, Size(5, 5));
+			getContoursAndMasks(&tmp, &image1, &masks, &signs);
+
+			getDescriptorAndDrawKeypoints(featureDetector, descriptorExtractor, descriptors, image1, masks);
+
+
+			/***************************** FIND BEST *****************************/
+			int best, bestScore = 0;
+			cv::imshow("Color", image1);
+			for (int i = 0; i < resultsSize; i++)
+			{
+				cvDestroyWindow(("Result " + std::to_string(i)).c_str());
+				cvDestroyWindow(("Sign " + std::to_string(i)).c_str());
+			}
+			resultsSize = descriptors.size();
+			if (!descriptors.empty() && !knownDescriptors.empty()) {
+				for (int sign_in_image = 0; sign_in_image < resultsSize; sign_in_image++)
+				{
+					bestScore = 0, best = -1;
+					for (int sample_id = 0; sample_id < knownDescriptors.size(); sample_id++)
+					{
+						matcher->match(descriptors[sign_in_image], knownDescriptors[sample_id], matches);
+						int score = 0;
+						for (int m = 0; m < matches.size(); m++)
+						{
+							if (matches[m].distance < 100.0)
+								score++;
+						}
+						if (score > bestScore)
+						{
+							bestScore = score;
+							best = sample_id + 1;
+						}
+					}
+					if (best != -1)
+					{
+						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+						putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
+						cv::imshow("Result " + std::to_string(sign_in_image), result);
+					}
+					cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);
+				}
+			}
+		lastFrameId = nb_img;
 		/***************************** FIND BEST *****************************/
 
 
