@@ -155,7 +155,7 @@ int main4(int argc, char* argv[])
 					{
 						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 						//putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
-						cv::imshow("Result " + std::to_string(best), result);
+						cv::imshow("Result " + std::to_string(sign_in_image), result);
 					}
 					//cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);
 				}
