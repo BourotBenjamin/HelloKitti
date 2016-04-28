@@ -8,6 +8,12 @@
 #include <opencv2/calib3d.hpp>
 #include <iostream>
 
+enum SHAPE {
+	SQUARE,
+	TRIANGLE,
+	CIRCLE
+};
+
 void updateMinH(int v, void* val);
 void updateMaxH(int v, void* val);
 
@@ -23,7 +29,7 @@ void updateNBImage(int v, void* val);
 //return the string corresponding to the correct folder
 std::string getImagePrefix(int nbImage);
 
-void getContoursAndMasks(const cv::Mat* contoursImage, const cv::Mat* baseImage, std::vector<cv::Mat>* masks, std::vector<cv::Mat>* signs);
+void getContoursAndMasks(const cv::Mat* contoursImage, const cv::Mat* baseImage, std::vector<cv::Mat>* masks, std::vector<cv::Mat>* signs, std::vector<SHAPE>& shapes);
 
 void initKnownDescriptors(std::string& prefix, cv::Ptr<cv::FeatureDetector> featureDetector, cv::Ptr<cv::DescriptorExtractor> descriptorExtractor, std::vector<cv::Mat>& knownDescriptors);
 

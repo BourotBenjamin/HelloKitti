@@ -41,16 +41,44 @@ const Scalar colors[] = {
 
 Rect maskRect;
 
+void trainClassifiedImages(string prefix, int folderName, Ptr<FeatureDetector> featureDetector, Ptr<DescriptorExtractor> descriptorExtractor, Ptr<DescriptorMatcher> matcher)
+{
+	vector<String> filenames;
+	String folder = prefix + "classified_images/" + to_string(folderName); 
+	Mat descriptor;
+	vector<Mat> descriptors;
+	vector<KeyPoint> keypoints;
+
+	glob(folder, filenames); // new function that does the job ;-)
+
+	for (size_t i = 0; i < filenames.size(); ++i)
+	{
+		keypoints.clear();
+		Mat src = imread(filenames[i]);
+		featureDetector->detect(src, keypoints, noArray());
+		descriptorExtractor->compute(src, keypoints, descriptor);
+		descriptors.push_back(descriptor);
+
+		if (!src.data)
+			cerr << "Problem loading image!!!" << endl;
+
+		/* do whatever you want with your images here */
+	}
+	matcher->add(descriptors);
+}
+
 int main4(int argc, char* argv[])
 {
 	Mat mask, maskBGR, result;
 	Mat image1, hsv, h, s, v, tmp, tmp2, canny_output, descriptor;
 	Mat hC[3], sC[3], vC[3];
 	vector<Mat> masks, knownDescriptors, descriptors, signs;
+	vector<SHAPE> shapes;
+	SHAPE samples_shape[18] = { SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, TRIANGLE, SQUARE, SQUARE, CIRCLE, CIRCLE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE };
 	Ptr<FeatureDetector> featureDetector = BRISK::create(10, 3, 0.5f);
 	//Ptr<FeatureDetector> featureDetector = FastFeatureDetector::create(5);
-	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create(10, 3, 0.5f);
-	Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
+	Ptr<DescriptorExtractor> descriptorExtractor = featureDetector;
+	Ptr<DescriptorMatcher> matcher = new FlannBasedMatcher(new cv::flann::LshIndexParams(5, 24, 2));
 	vector<KeyPoint> keypoints;
 	vector<DMatch> matches;
 	int resultsSize = 0;
@@ -59,6 +87,12 @@ int main4(int argc, char* argv[])
 		prefix = std::string(argv[1]);
 
 	initKnownDescriptors(prefix, featureDetector, descriptorExtractor, knownDescriptors);
+	for (int i = 1; i < 19; i++)
+		trainClassifiedImages(prefix, i, featureDetector, descriptorExtractor, matcher);
+	cout << "Begin train" << endl;
+	for (int i = 1; i < 1000000000; i++)
+		matcher->train();
+	cout << "End train" << endl;
 
 	image1 = cv::imread(prefix + std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
 	cv::imshow("Color", image1);
@@ -70,6 +104,7 @@ int main4(int argc, char* argv[])
 			signs.clear();
 			descriptors.clear();
 			descriptor = Mat();
+			shapes.clear();
 
 			image1 = cv::imread(prefix + getImagePrefix(nb_img) + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
 			cvtColor(image1, hsv, CV_BGR2HSV);
@@ -79,9 +114,9 @@ int main4(int argc, char* argv[])
 				inRange(hsv, colors[i], colors[i + 1], tmp2);
 				max(tmp, tmp2, tmp);
 			}
-			getContoursAndMasks(&tmp, &image1, &masks, &signs);
+			getContoursAndMasks(&tmp, &image1, &masks, &signs, shapes);
 			blur(tmp, tmp, Size(5, 5));
-			getContoursAndMasks(&tmp, &image1, &masks, &signs);
+			getContoursAndMasks(&tmp, &image1, &masks, &signs, shapes);
 
 			getDescriptorAndDrawKeypoints(featureDetector, descriptorExtractor, descriptors, image1, masks);
 
@@ -101,20 +136,23 @@ int main4(int argc, char* argv[])
 					bestScore = 0, best = -1;
 					for (int sample_id = 0; sample_id < knownDescriptors.size(); sample_id++)
 					{
-						matcher->match(descriptors[sign_in_image], knownDescriptors[sample_id], matches);
-						int score = 0;
-						for (int m = 0; m < matches.size(); m++)
+						if ((shapes[sign_in_image] == samples_shape[sample_id]))
 						{
-							if (matches[m].distance < 100.0)
-								score++;
-						}
-						if (score > bestScore)
-						{
-							bestScore = score;
-							best = sample_id + 1;
+							matcher->match(descriptors[sign_in_image], knownDescriptors[sample_id], matches);
+							int score = 0;
+							for (int m = 0; m < matches.size(); m++)
+							{
+								if (matches[m].distance < 100.0)
+									score++;
+							}
+							if (score > bestScore)
+							{
+								bestScore = score;
+								best = sample_id + 1;
+							}
 						}
 					}
-					if (best != -1 && bestScore > 20)
+					if (best != -1 && bestScore > 10)
 					{
 						//test de la couleur
 						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
@@ -357,7 +395,7 @@ std::string getImagePrefix(int i)
 		return std::string("images/000000");
 }
 
-void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::vector<Mat>* masks, std::vector<Mat>* signs)
+void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::vector<Mat>* masks, std::vector<Mat>* signs, std::vector<SHAPE>& shapes)
 {
 	findContours(*contoursImage, contours, RETR_LIST, CV_CHAIN_APPROX_NONE);
 	int i = 0;
@@ -366,51 +404,62 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 		area = contourArea(cnt);
 		if (area > 400 && area < 30000)
 		{
-			/*size = minEnclosingTriangle(cnt, triangle);
+			size = minEnclosingTriangle(cnt, triangle);
 			if (area > size * 0.9 && !triangle.empty())
 			{
-			rect = minAreaRect(cnt);
-			rect.points(points);
-			points[2].y = max(points[2].y, 0.0f);
-			maskRect = Rect(points[0], points[2]);
-			Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
-			rectangle(mask, points[0], points[2], white, CV_FILLED);
-			masks->push_back(mask);
-			signs->push_back((*baseImage)(maskRect));
-			}
-			else
-			{
-			minEnclosingCircle(cnt, cCenter, cRadius);
-			if (area > 3.14 * cRadius * cRadius * 0.75)
-			{
-			rect = minAreaRect(cnt);
-			rect.points(points);
-			points[2].y = max(points[2].y, 0.0f);
-			maskRect = Rect(points[0], points[2]);
-			Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
-			circle(mask, cCenter, cRadius, white, CV_FILLED);
-			masks->push_back(mask);
-			signs->push_back((*baseImage)(maskRect));
-			}
-			else
-			{*/
-			rect = minAreaRect(cnt);
-			if (rect.size.height * rect.size.width * 0.7 < area)
-			{
+				rect = minAreaRect(cnt);
 				rect.points(points);
-				maskRect = Rect(
+				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+				rectangle(mask, points[0], points[2], white, CV_FILLED);
+				masks->push_back(mask);
+				/*maskRect = Rect(
+				min(points[0].x, points[2].x),
+				max(points[2].y, 0.0f),
+				max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
+				min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
+				);
+				signs->push_back((*baseImage)(maskRect));*/
+				shapes.push_back(TRIANGLE);
+			}
+			else
+			{
+				minEnclosingCircle(cnt, cCenter, cRadius);
+				if (area > 3.14 * cRadius * cRadius * 0.75)
+				{
+					rect = minAreaRect(cnt);
+					rect.points(points);
+					Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+					rectangle(mask, points[0], points[2], white, CV_FILLED);
+					masks->push_back(mask);
+					/*maskRect = Rect(
 					min(points[0].x, points[2].x),
 					max(points[2].y, 0.0f),
 					max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
 					min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
 					);
-				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
-				rectangle(mask, points[0], points[2], white, CV_FILLED);
-				masks->push_back(mask);
-				signs->push_back((*baseImage)(maskRect));
+					signs->push_back((*baseImage)(maskRect));*/
+					shapes.push_back(CIRCLE);
+				}
+				else
+				{
+					rect = minAreaRect(cnt);
+					if (rect.size.height * rect.size.width * 0.7 < area)
+					{
+						rect.points(points);
+						maskRect = Rect(
+							min(points[0].x, points[2].x),
+							max(points[2].y, 0.0f),
+							max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
+							min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
+							);
+						Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+						rectangle(mask, points[0], points[2], white, CV_FILLED);
+						masks->push_back(mask);
+						//signs->push_back((*baseImage)(maskRect));
+						shapes.push_back(SQUARE);
+					}
+				}
 			}
-			//}
-			//}
 		}
 		i++;
 	}
