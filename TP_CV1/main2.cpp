@@ -40,6 +40,31 @@ const Scalar colors[] = {
 
 Rect maskRect;
 
+void trainClassifiedImages(string prefix, char* folderName, Ptr<FeatureDetector> featureDetector, Ptr<DescriptorExtractor> descriptorExtractor, Ptr<DescriptorMatcher> matcher)
+{
+	vector<String> filenames;
+	String folder = prefix + folderName; 
+	Mat descriptor;
+	vector<Mat> descriptors;
+	vector<KeyPoint> keypoints;
+
+	glob(folder, filenames); // new function that does the job ;-)
+
+	for (size_t i = 0; i < filenames.size(); ++i)
+	{
+		Mat src = imread(filenames[i]);
+		featureDetector->detect(src, keypoints, noArray());
+		descriptorExtractor->compute(src, keypoints, descriptor);
+		descriptors.push_back(descriptor);
+
+		if (!src.data)
+			cerr << "Problem loading image!!!" << endl;
+
+		/* do whatever you want with your images here */
+	}
+	matcher->add(descriptors);
+}
+
 int main4(int argc, char* argv[])
 {
 	Mat mask, maskBGR, result;
@@ -48,8 +73,8 @@ int main4(int argc, char* argv[])
 	vector<Mat> masks, knownDescriptors, descriptors, signs;
 	Ptr<FeatureDetector> featureDetector = BRISK::create(10, 3, 0.5f);
 	//Ptr<FeatureDetector> featureDetector = FastFeatureDetector::create(5);
-	Ptr<DescriptorExtractor> descriptorExtractor = BRISK::create(10, 3, 0.5f);
-	Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
+	Ptr<DescriptorExtractor> descriptorExtractor = featureDetector;
+	Ptr<DescriptorMatcher> matcher = new FlannBasedMatcher(new cv::flann::LshIndexParams(5, 24, 2));
 	vector<KeyPoint> keypoints;
 	vector<DMatch> matches;
 	int resultsSize = 0;
@@ -58,6 +83,11 @@ int main4(int argc, char* argv[])
 		prefix = std::string(argv[1]);
 
 	initKnownDescriptors(prefix, featureDetector, descriptorExtractor, knownDescriptors);
+	trainClassifiedImages(prefix, "0", featureDetector, descriptorExtractor, matcher);
+	trainClassifiedImages(prefix, "1", featureDetector, descriptorExtractor, matcher);
+	trainClassifiedImages(prefix, "2", featureDetector, descriptorExtractor, matcher);
+	trainClassifiedImages(prefix, "3", featureDetector, descriptorExtractor, matcher);
+	//matcher->train();
 
 	image1 = cv::imread(prefix + std::string("images/0000000000.png"), CV_LOAD_IMAGE_COLOR);
 	cv::imshow("Color", image1);
@@ -357,21 +387,25 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 		area = contourArea(cnt);
 		if (area > 400 && area < 30000)
 		{
-			/*size = minEnclosingTriangle(cnt, triangle);
+			size = minEnclosingTriangle(cnt, triangle);
 			if (area > size * 0.9 && !triangle.empty())
 			{
-			rect = minAreaRect(cnt);
-			rect.points(points);
-			points[2].y = max(points[2].y, 0.0f);
-			maskRect = Rect(points[0], points[2]);
-			Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
-			rectangle(mask, points[0], points[2], white, CV_FILLED);
-			masks->push_back(mask);
-			signs->push_back((*baseImage)(maskRect));
+				rect = minAreaRect(cnt);
+				rect.points(points);
+				maskRect = Rect(
+					min(points[0].x, points[2].x),
+					max(points[2].y, 0.0f),
+					max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
+					min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
+					);
+				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+				rectangle(mask, points[0], points[2], white, CV_FILLED);
+				masks->push_back(mask);
+				signs->push_back((*baseImage)(maskRect));
 			}
 			else
 			{
-			minEnclosingCircle(cnt, cCenter, cRadius);
+			/*minEnclosingCircle(cnt, cCenter, cRadius);
 			if (area > 3.14 * cRadius * cRadius * 0.75)
 			{
 			rect = minAreaRect(cnt);
@@ -385,22 +419,22 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 			}
 			else
 			{*/
-			rect = minAreaRect(cnt);
-			if (rect.size.height * rect.size.width * 0.7 < area)
-			{
-				rect.points(points);
-				maskRect = Rect(
-					min(points[0].x, points[2].x),
-					max(points[2].y, 0.0f),
-					max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
-					min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
-					);
-				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
-				rectangle(mask, points[0], points[2], white, CV_FILLED);
-				masks->push_back(mask);
-				signs->push_back((*baseImage)(maskRect));
+				rect = minAreaRect(cnt);
+				if (rect.size.height * rect.size.width * 0.7 < area)
+				{
+					rect.points(points);
+					maskRect = Rect(
+						min(points[0].x, points[2].x),
+						max(points[2].y, 0.0f),
+						max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
+						min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
+						);
+					Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
+					rectangle(mask, points[0], points[2], white, CV_FILLED);
+					masks->push_back(mask);
+					signs->push_back((*baseImage)(maskRect));
+				}
 			}
-			//}
 			//}
 		}
 		i++;
@@ -418,7 +452,7 @@ void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, 
 		descriptorExtractor->compute(image, keypoints, descriptor);
 		knownDescriptors.push_back(descriptor);
 		drawKeypoints(image, keypoints, image);
-		cv::imshow("Example " + std::to_string(nb_img), image);
+		//cv::imshow("Example " + std::to_string(nb_img), image);
 		waitKey(1);
 	}
 }
@@ -431,7 +465,7 @@ void getDescriptorAndDrawKeypoints(Ptr<FeatureDetector> featureDetector, Ptr<Des
 	{
 		featureDetector->detect(image, keypoints, mask);
 		descriptorExtractor->compute(image, keypoints, descriptor);
-		drawKeypoints(image, keypoints, image);
+		//drawKeypoints(image, keypoints, image);
 		descriptors.push_back(descriptor);
 	}
 }
