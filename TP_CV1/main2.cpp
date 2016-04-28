@@ -1,4 +1,5 @@
 ﻿#include "Includes.h"
+#include "testColour.h"
 
 using namespace cv;
 using namespace std;
@@ -153,11 +154,17 @@ int main4(int argc, char* argv[])
 					}
 					if (best != -1 && bestScore > 10)
 					{
+						//test de la couleur
 						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
-						//putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
-						cv::imshow("Result " + std::to_string(sign_in_image), result);
+						auto dominantClassified = dominantColour(result);
+						auto dominantSign = dominantColour(signs[sign_in_image]);
+						if (compareColour(dominantClassified, dominantSign, 0.5))
+						{
+							putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
+							cv::imshow("Result " + std::to_string(sign_in_image), result);
+							cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);
+						}
 					}
-					//cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);
 				}
 			}
 		/***************************** FIND BEST *****************************/
@@ -466,7 +473,7 @@ void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, 
 		featureDetector->detect(image, keypoints, noArray());
 		descriptorExtractor->compute(image, keypoints, descriptor);
 		knownDescriptors.push_back(descriptor);
-		drawKeypoints(image, keypoints, image);
+		//drawKeypoints(image, keypoints, image);
 		//cv::imshow("Example " + std::to_string(nb_img), image);
 		waitKey(1);
 	}
