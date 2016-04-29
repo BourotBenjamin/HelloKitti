@@ -69,10 +69,10 @@ void trainClassifiedImages(string prefix, int folderName, Ptr<FeatureDetector> f
 
 int main4(int argc, char* argv[])
 {
-	Mat mask, maskBGR, result;
+	Mat mask, maskBGR, result, globalImage, cleanGlobalImage;
 	Mat image1, hsv, h, s, v, tmp, tmp2, canny_output, descriptor;
 	Mat hC[3], sC[3], vC[3];
-	vector<Mat> masks, knownDescriptors, descriptors, signs;
+	vector<Mat> masks, knownDescriptors, descriptors, signs, knownSigns;
 	vector<SHAPE> shapes;
 	SHAPE samples_shape[18] = { SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, TRIANGLE, SQUARE, SQUARE, CIRCLE, CIRCLE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE, SQUARE };
 	Ptr<FeatureDetector> featureDetector = BRISK::create(10, 3, 0.5f);
@@ -81,12 +81,14 @@ int main4(int argc, char* argv[])
 	Ptr<DescriptorMatcher> matcher = new FlannBasedMatcher(new cv::flann::LshIndexParams(5, 24, 2));
 	vector<KeyPoint> keypoints;
 	vector<DMatch> matches;
+	vector<int> sizes;
 	int resultsSize = 0;
 	std::string prefix("");
 	if (argc > 1)
 		prefix = std::string(argv[1]);
 
-	initKnownDescriptors(prefix, featureDetector, descriptorExtractor, knownDescriptors);
+	initKnownDescriptors(prefix, featureDetector, descriptorExtractor, knownDescriptors, knownSigns, globalImage, sizes);
+	globalImage.copyTo(cleanGlobalImage);
 	for (int i = 1; i < 19; i++)
 		trainClassifiedImages(prefix, i, featureDetector, descriptorExtractor, matcher);
 	cout << "Begin train" << endl;
@@ -154,19 +156,22 @@ int main4(int argc, char* argv[])
 					}
 					if (best != -1 && bestScore > 10)
 					{
+						circle(globalImage, Point(sizes[best - 1], 10), 10, red, CV_FILLED);
 						//test de la couleur
-						result = cv::imread(prefix + "classified_images/" + std::to_string(best) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+						result = knownSigns[best - 1];
 						auto dominantClassified = dominantColour(result);
 						auto dominantSign = dominantColour(signs[sign_in_image]);
 						if (compareColour(dominantClassified, dominantSign, 0.5))
 						{
-							putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
+							/*putText(result, std::to_string(bestScore) + "-" + std::to_string(matches.size()), Point(0, 30), FONT_HERSHEY_PLAIN, 1.0, green);
 							cv::imshow("Result " + std::to_string(sign_in_image), result);
-							cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);
+							cv::imshow("Sign " + std::to_string(sign_in_image), signs[sign_in_image]);*/
+							circle(globalImage, Point(sizes[best - 1], 10), 10, green, CV_FILLED);
 						}
 					}
 				}
 			}
+			imshow("Global", globalImage);
 		/***************************** FIND BEST *****************************/
 
 
@@ -213,6 +218,7 @@ int main4(int argc, char* argv[])
 
 		waitKey(1);
 		nb_img++;
+		cleanGlobalImage.copyTo(globalImage);
 	}
 	cv::waitKey();
 	std::cout << "end" << std::endl;
@@ -410,13 +416,13 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 				Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
 				rectangle(mask, points[0], points[2], white, CV_FILLED);
 				masks->push_back(mask);
-				/*maskRect = Rect(
+				maskRect = Rect(
 				min(points[0].x, points[2].x),
 				max(points[2].y, 0.0f),
 				max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
 				min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
 				);
-				signs->push_back((*baseImage)(maskRect));*/
+				signs->push_back((*baseImage)(maskRect));
 				shapes.push_back(TRIANGLE);
 			}
 			else
@@ -429,13 +435,13 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 					Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
 					rectangle(mask, points[0], points[2], white, CV_FILLED);
 					masks->push_back(mask);
-					/*maskRect = Rect(
+					maskRect = Rect(
 					min(points[0].x, points[2].x),
 					max(points[2].y, 0.0f),
 					max(points[0].x, points[2].x) - min(points[0].x, points[2].x) + 1,
 					min(points[0].y - max(points[2].y, 0.0f), ((float)baseImage->rows - 2) - max(points[2].y, 0.0f))
 					);
-					signs->push_back((*baseImage)(maskRect));*/
+					signs->push_back((*baseImage)(maskRect));
 					shapes.push_back(CIRCLE);
 				}
 				else
@@ -453,7 +459,7 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 						Mat mask = Mat::zeros((*contoursImage).rows, (*contoursImage).cols, CV_8UC1);
 						rectangle(mask, points[0], points[2], white, CV_FILLED);
 						masks->push_back(mask);
-						//signs->push_back((*baseImage)(maskRect));
+						signs->push_back((*baseImage)(maskRect));
 						shapes.push_back(SQUARE);
 					}
 				}
@@ -463,13 +469,18 @@ void getContoursAndMasks(const Mat* contoursImage, const Mat* baseImage, std::ve
 	}
 }
 
-void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, Ptr<DescriptorExtractor> descriptorExtractor, vector<Mat>& knownDescriptors)
+void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, Ptr<DescriptorExtractor> descriptorExtractor, vector<Mat>& knownDescriptors, vector<Mat>& signs, Mat& globalImage, vector<int>& sizes)
 {
-	Mat image, descriptor;
+	int lastSize = 0;
+	Mat image, descriptor, tmp;
 	vector<KeyPoint> keypoints;
 	for (int nb_img = 1; nb_img < 19; nb_img++)
 	{
 		image = cv::imread(prefix + "classified_images/" + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+		tmp = cv::imread(prefix + "classified_images/show/" + std::to_string(nb_img) + std::string(".png"), CV_LOAD_IMAGE_COLOR);
+		sizes.push_back(tmp.cols / 2 + lastSize);
+		lastSize += tmp.cols;
+		signs.push_back(tmp);
 		featureDetector->detect(image, keypoints, noArray());
 		descriptorExtractor->compute(image, keypoints, descriptor);
 		knownDescriptors.push_back(descriptor);
@@ -477,6 +488,9 @@ void initKnownDescriptors(string& prefix, Ptr<FeatureDetector> featureDetector, 
 		//cv::imshow("Example " + std::to_string(nb_img), image);
 		waitKey(1);
 	}
+	hconcat(signs, globalImage);
+	imshow("Global", globalImage);
+	waitKey(1);
 }
 
 void getDescriptorAndDrawKeypoints(Ptr<FeatureDetector> featureDetector, Ptr<DescriptorExtractor> descriptorExtractor, vector<Mat>& descriptors, Mat image, vector<Mat> masks)

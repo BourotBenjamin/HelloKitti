@@ -31,7 +31,7 @@ std::string getImagePrefix(int nbImage);
 
 void getContoursAndMasks(const cv::Mat* contoursImage, const cv::Mat* baseImage, std::vector<cv::Mat>* masks, std::vector<cv::Mat>* signs, std::vector<SHAPE>& shapes);
 
-void initKnownDescriptors(std::string& prefix, cv::Ptr<cv::FeatureDetector> featureDetector, cv::Ptr<cv::DescriptorExtractor> descriptorExtractor, std::vector<cv::Mat>& knownDescriptors);
+void initKnownDescriptors(std::string& prefix, cv::Ptr<cv::FeatureDetector> featureDetector, cv::Ptr<cv::DescriptorExtractor> descriptorExtractor, std::vector<cv::Mat>& knownDescriptors, std::vector<cv::Mat>& signs, cv::Mat& globalImage, std::vector<int>& sizes);
 
 void getDescriptorAndDrawKeypoints(cv::Ptr<cv::FeatureDetector> featureDetector, cv::Ptr<cv::DescriptorExtractor> descriptorExtractor, std::vector<cv::Mat>& descriptors, cv::Mat image, std::vector<cv::Mat> masks);
 

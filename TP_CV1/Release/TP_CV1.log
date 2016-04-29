@@ -1,21 +1,24 @@
-﻿La génération a démarré 28/04/2016 17:35:46.
+﻿La génération a démarré 29/04/2016 12:14:50.
      1>Projet "C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\TP_CV1\TP_CV1.vcxproj" sur le nœud 2 (Build cible(s)).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /Zi /nologo /W3 /WX- /sdl /O2 /Oi /Oy- /GL /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Release\\" /Fd"Release\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt main2.cpp
          main2.cpp
-     1>main2.cpp(111): warning C4258: 'i' : définition provenant de la boucle for ignorée ; la définition provenant de la portée englobante est utilisée
-                 main2.cpp(92) : définition de 'i' ignorée
-                 main2.cpp(6) : définition de 'i' utilisée
-     1>main2.cpp(113): warning C4258: 'i' : définition provenant de la boucle for ignorée ; la définition provenant de la portée englobante est utilisée
-                 main2.cpp(92) : définition de 'i' ignorée
-                 main2.cpp(6) : définition de 'i' utilisée
-     1>main2.cpp(136): warning C4018: '<' : incompatibilité signed/unsigned
-     1>main2.cpp(142): warning C4018: '<' : incompatibilité signed/unsigned
-     1>main2.cpp(395): warning C4244: '=' : conversion de 'double' en 'float', perte possible de données
-     1>main2.cpp(398): warning C4244: '=' : conversion de 'double' en 'float', perte possible de données
-     1>main2.cpp(445): warning C4244: 'argument' : conversion de 'const float' en 'int', perte possible de données
+     1>main2.cpp(114): warning C4258: 'i' : définition provenant de la boucle for ignorée ; la définition provenant de la portée englobante est utilisée
+                 main2.cpp(95) : définition de 'i' ignorée
+                 main2.cpp(7) : définition de 'i' utilisée
+     1>main2.cpp(116): warning C4258: 'i' : définition provenant de la boucle for ignorée ; la définition provenant de la portée englobante est utilisée
+                 main2.cpp(95) : définition de 'i' ignorée
+                 main2.cpp(7) : définition de 'i' utilisée
+     1>main2.cpp(139): warning C4018: '<' : incompatibilité signed/unsigned
+     1>main2.cpp(145): warning C4018: '<' : incompatibilité signed/unsigned
+     1>main2.cpp(408): warning C4244: '=' : conversion de 'double' en 'float', perte possible de données
+     1>main2.cpp(411): warning C4244: '=' : conversion de 'double' en 'float', perte possible de données
+     1>main2.cpp(424): warning C4244: 'argument' : conversion de 'const float' en 'int', perte possible de données
+     1>main2.cpp(443): warning C4244: 'argument' : conversion de 'const float' en 'int', perte possible de données
+     1>main2.cpp(458): warning C4244: 'argument' : conversion de 'const float' en 'int', perte possible de données
        Link:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\Release\TP_CV1.exe" /NOLOGO opencv_ts300.lib opencv_world300.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\Release\TP_CV1.pdb" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\Release\TP_CV1.lib" /MACHINE:X86 /SAFESEH Release\main2.obj
+         Release\testColour.obj
          Génération de code en cours
          Fin de la génération du code
          TP_CV1.vcxproj -> C:\Users\Philoupe\Dropbox\workspace\C++\HelloKitti\Release\TP_CV1.exe
@@ -23,4 +26,4 @@
 
 La génération a réussi.
 
-Temps écoulé 00:00:03.74
+Temps écoulé 00:00:03.77
